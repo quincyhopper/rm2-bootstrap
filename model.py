@@ -68,9 +68,9 @@ class EarlyStopping:
             self.count = 0
             torch.save(model.state_dict(), self.model_name)
         else:
-            self.counter += 1
+            self.count += 1
 
-        return self.counter >= self.patience
+        return self.count >= self.patience
 
 class LogisticRegression(nn.Module):
     def __init__(self, vocab_size):
