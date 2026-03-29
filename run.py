@@ -4,13 +4,13 @@ import time
 import nltk
 from torch.utils.data import DataLoader
 from sklearn.model_selection import train_test_split
-from model import get_vocab, MultiHotDataset, MultiHotCollator, LogisticRegression
+from model import get_vocab, MultiHotDataset, MultiHotCollator, LogisticRegression, EarlyStopping
 from nltk.tokenize import word_tokenize
 
 BATCH_SIZE = 64
-LEARNING_RATE = 1e-2
+LEARNING_RATE = 1e-4
 WEIGHT_DECAY = 1e-4
-MAX_EPOCHS = 1000
+MAX_EPOCHS = 100
 
 def train(train_loader, model, optimiser, criterion, device):
     model.train()
@@ -92,6 +92,7 @@ if __name__ == "__main__":
     model = LogisticRegression(vocab_size).to(device)
     optimiser = torch.optim.AdamW(model.parameters(), lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY)
     criterion = torch.nn.CrossEntropyLoss()
+    early_stopping = EarlyStopping(patience=10)
 
     # Init loaders
     train_loader = DataLoader(
@@ -120,3 +121,7 @@ if __name__ == "__main__":
         total_time = time.time() - start
 
         print(f"Epoch [{epoch+1}/{MAX_EPOCHS}] | Train loss: {train_loss:.2f} | Val loss: {val_loss:.2f} | Val acc: {val_acc:.2f} | Time: {total_time:.2f} seconds")
+
+        if early_stopping.step(model, val_loss):
+            print("Early stopping triggered.")
+            break

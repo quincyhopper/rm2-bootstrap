@@ -54,6 +54,22 @@ class MultiHotCollator():
 
         return x, y
     
+class EarlyStopping:
+    def __init__(self, patience: int):
+        self.patience = patience
+        self.best = float('inf')
+        self.count = 0
+
+    def step(self, model, val_loss: float):
+        if val_loss < self.best:
+            self.best = val_loss
+            self.counter = 0
+            torch.save(model.state_dict(), 'best_model.pt')
+        else:
+            self.counter += 1
+
+        return self.counter >= self.patience
+
 class LogisticRegression(nn.Module):
     def __init__(self, vocab_size):
         super().__init__()
