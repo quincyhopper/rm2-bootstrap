@@ -37,10 +37,9 @@ def val(val_loader, model, criterion, device):
 
     for batch, targets in val_loader:
         batch, targets = batch.to(device), targets.to(device)
-        preds = model(batch)
-        loss = criterion(preds, targets)
+        logits = model(batch)
+        loss = criterion(logits, targets)
         total_loss += loss.item()
-        # TODO: accuracy
 
     return total_loss / len(val_loader)
 

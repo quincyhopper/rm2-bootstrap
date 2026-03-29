@@ -53,7 +53,7 @@ class MultiHotCollator():
         for i, t in enumerate(batch):
             x[i].scatter_(0, t[0], 1.0)
         
-        y = torch.stack([t[1] for t in batch])
+        y = torch.stack([t[1] for t in batch]).float()
 
         return x, y
     
@@ -61,7 +61,7 @@ class LogisticRegression(nn.Module):
     def __init__(self, vocab_size):
         super().__init__()
 
-        self.fc1 = nn.Linear(vocab_size, 2)
+        self.fc1 = nn.Linear(vocab_size, 1)
 
     def forward(self, x: torch.Tensor):
         x = self.fc1(x)
