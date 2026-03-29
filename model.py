@@ -62,9 +62,9 @@ class EarlyStopping:
         self.delta = delta
         self.model_name = model_name
 
-    def step(self, model, score: float):
-        if score < self.best - self.delta:
-            self.best = score
+    def step(self, model, auc: float):
+        if auc > self.best - self.delta:
+            self.best = auc
             self.counter = 0
             torch.save(model.state_dict(), self.model_name)
         else:
