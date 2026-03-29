@@ -44,7 +44,7 @@ def val(val_loader, model, criterion, device):
         preds = logits.argmax(dim=-1)
         correct += (preds == targets).sum().item()
 
-    return (total_loss / len(val_loader)), (correct / len(val_loader))
+    return (total_loss / len(val_loader)), (correct / len(val_loader.dataset))
 
 if __name__ == "__main__":
 

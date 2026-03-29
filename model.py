@@ -1,10 +1,7 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from torch.utils.data import Dataset
 from collections import Counter
-
-BATCH_SIZE = 256
 
 def get_vocab(tokenised_texts: list[list[str]]) -> dict:
     
@@ -66,14 +63,3 @@ class LogisticRegression(nn.Module):
     def forward(self, x: torch.Tensor):
         x = self.fc1(x)
         return x
-        
-
-
-    
-
-
-
-
-
-    
-
