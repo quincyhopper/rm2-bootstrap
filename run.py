@@ -97,7 +97,7 @@ def bootstrap(X, y, model1, model2, criterion, vocab, batch_size, device):
         _, auc2 = val(loader, model2, criterion, device)
         diffs.append(auc1 - auc2)
 
-    mean_diff = diffs.mean()
+    mean_diff = sum(diffs) / len(diffs)
     lower, upper = diffs[math.floor(len(diffs) * 0.025)], diffs[math.floor(len(diffs) * 0.975)]
 
     return mean_diff, lower, upper
