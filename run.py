@@ -15,33 +15,6 @@ WEIGHT_DECAY = 1e-4
 MAX_EPOCHS = 1000
 N_BOOTSTRAP = 1000
 
-def get_bootstrap_loader(dataset, batch_size: int, vocab_size: int):
-    sampler = RandomSampler(dataset, replacement=True, num_samples=len(dataset))
-    return DataLoader(
-        dataset,
-        batch_size=batch_size,
-        sampler=sampler,
-        collate_fn=MultiHotCollator(vocab_size),
-        pin_memory=True
-    )
-
-def bootstrap(X, y, model1, model2, criterion, vocab, batch_size, device):
-
-    test_dataset = MultiHotDataset(X, y, vocab)
-    vocab_size = len(vocab)
-
-    diffs = []
-    for _ in range(N_BOOTSTRAP):
-        loader = get_bootstrap_loader(test_dataset, batch_size=batch_size, vocab_size=vocab_size)
-        _, auc1, _ = val(loader, model1, criterion, device)
-        _, auc2, _ = val(loader, model2, criterion, device)
-        diffs.append(auc1 - auc2)
-
-    mean_diff = diffs.mean()
-    lower, upper = diffs[math.floor(len(diffs) * 0.025)], diffs[math.floor(len(diffs) * 0.975)]
-
-    return mean_diff, lower, upper
-
 def train(train_loader, model, optimiser, criterion, device):
     model.train()
 
@@ -98,9 +71,36 @@ def train_model(model, train_loader, val_loader, model_name, device):
 
         print(f"Epoch [{epoch+1}/{MAX_EPOCHS}] | Train loss: {train_loss:.2f} | Val loss: {val_loss:.2f} | Val AUC: {val_auc:.2f} | Time: {total_time:.2f} seconds")
 
-        if early_stopping.step(model, val_loss, epoch+1):
+        if early_stopping.step(model, val_auc, epoch+1):
             print("Early stopping triggered.\n")
             break
+
+def get_bootstrap_loader(dataset, batch_size: int, vocab_size: int):
+    sampler = RandomSampler(dataset, replacement=True, num_samples=len(dataset))
+    return DataLoader(
+        dataset,
+        batch_size=batch_size,
+        sampler=sampler,
+        collate_fn=MultiHotCollator(vocab_size),
+        pin_memory=True
+    )
+
+def bootstrap(X, y, model1, model2, criterion, vocab, batch_size, device):
+
+    test_dataset = MultiHotDataset(X, y, vocab)
+    vocab_size = len(vocab)
+
+    diffs = []
+    for _ in range(N_BOOTSTRAP):
+        loader = get_bootstrap_loader(test_dataset, batch_size=batch_size, vocab_size=vocab_size)
+        _, auc1 = val(loader, model1, criterion, device)
+        _, auc2 = val(loader, model2, criterion, device)
+        diffs.append(auc1 - auc2)
+
+    mean_diff = diffs.mean()
+    lower, upper = diffs[math.floor(len(diffs) * 0.025)], diffs[math.floor(len(diffs) * 0.975)]
+
+    return mean_diff, lower, upper
 
 if __name__ == "__main__":
 
