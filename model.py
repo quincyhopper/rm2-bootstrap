@@ -55,13 +55,14 @@ class MultiHotCollator():
         return x, y
     
 class EarlyStopping:
-    def __init__(self, patience: int):
+    def __init__(self, patience: int, delta: int=1e-4):
         self.patience = patience
         self.best = float('inf')
         self.count = 0
+        self.delta = delta
 
     def step(self, model, val_loss: float):
-        if val_loss < self.best:
+        if val_loss < self.best - self.delta:
             self.best = val_loss
             self.counter = 0
             torch.save(model.state_dict(), 'best_model.pt')
