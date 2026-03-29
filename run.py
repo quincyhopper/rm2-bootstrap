@@ -98,8 +98,8 @@ def train_model(model, train_loader, val_loader, model_name, device):
 
         print(f"Epoch [{epoch+1}/{MAX_EPOCHS}] | Train loss: {train_loss:.2f} | Val loss: {val_loss:.2f} | Val AUC: {val_auc:.2f} | Time: {total_time:.2f} seconds")
 
-        if early_stopping.step(model, val_loss):
-            print("Early stopping triggered.")
+        if early_stopping.step(model, val_loss, epoch+1):
+            print("Early stopping triggered.\n")
             break
 
 if __name__ == "__main__":
