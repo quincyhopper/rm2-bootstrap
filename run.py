@@ -34,6 +34,7 @@ def val(val_loader, model, criterion, device):
     model.eval()
 
     total_loss = 0.0
+    total_acc = 0.0
 
     for batch, targets in val_loader:
         batch, targets = batch.to(device), targets.to(device)
@@ -41,7 +42,11 @@ def val(val_loader, model, criterion, device):
         loss = criterion(logits, targets)
         total_loss += loss.item()
 
-    return total_loss / len(val_loader)
+        preds = logits.argmax(dim=-1)
+        acc = accuracy_score(targets, preds)
+        total_acc += acc
+
+    return (total_loss / len(val_loader)), (total_acc / len(val_loader))
 
 if __name__ == "__main__":
 
@@ -112,8 +117,8 @@ if __name__ == "__main__":
         start = time.time()
 
         train_loss = train(train_loader, model, optimiser, criterion, device)
-        val_loss = val(val_loader, model, criterion, device)
+        val_loss, val_acc = val(val_loader, model, criterion, device)
 
         total_time = time.time() - start
 
-        print(f"Epoch [{epoch+1}/{MAX_EPOCHS}] | Train loss: {train_loss:.2f} | Val loss: {val_loss:.2f} | Time: {total_time:.2f} seconds")
+        print(f"Epoch [{epoch+1}/{MAX_EPOCHS}] | Train loss: {train_loss:.2f} | Val loss: {val_loss:.2f} | Val acc: {val_acc:.2f} | Time: {total_time:.2f} seconds")
