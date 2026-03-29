@@ -2,7 +2,7 @@ import pandas as pd
 import torch
 import time
 import nltk
-import math
+import numpy as np
 from torch.utils.data import DataLoader, RandomSampler
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import roc_auc_score
@@ -98,7 +98,7 @@ def bootstrap(X, y, model1, model2, criterion, vocab, batch_size, device):
         diffs.append(auc1 - auc2)
 
     mean_diff = sum(diffs) / len(diffs)
-    lower, upper = diffs[math.floor(len(diffs) * 0.025)], diffs[math.floor(len(diffs) * 0.975)]
+    lower, upper = np.percentile(diffs, 2.5), np.percentile(diffs, 97.5)
 
     return mean_diff, lower, upper
 
