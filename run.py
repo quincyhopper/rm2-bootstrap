@@ -1,6 +1,7 @@
 import pandas as pd
 import torch
 import time
+import nltk
 from torch.utils.data import DataLoader
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
@@ -44,6 +45,12 @@ def val(val_loader, model, criterion, device):
     return total_loss / len(val_loader)
 
 if __name__ == "__main__":
+
+    # Download punkt_tab
+    try:
+        nltk.data.find('tokenizers/punkt_tab')
+    except LookupError:
+        nltk.download('punkt_tab')
 
     # Read datat
     print("Loading data...")
