@@ -175,5 +175,5 @@ if __name__ == "__main__":
     print("Bootstrapping...")
     logreg.load_state_dict(torch.load('logreg.pt', weights_only=True))
     mlp.load_state_dict(torch.load('mlp.pt', weights_only=True))
-    diff, lower, upper = bootstrap(test_tokenised, y_test, logreg, mlp, criterion=torch.nn.CrossEntropyLoss(), vocab=vocab, batch_size=BATCH_SIZE)
+    diff, lower, upper = bootstrap(test_tokenised, y_test, logreg, mlp, criterion=torch.nn.CrossEntropyLoss(), vocab=vocab, batch_size=BATCH_SIZE, device=device)
     print(f"Diff: {diff}")
