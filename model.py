@@ -57,7 +57,7 @@ class MultiHotCollator():
 class EarlyStopping:
     def __init__(self, patience: int, model_name: str, delta: int=1e-4):
         self.patience = patience
-        self.best = float('inf')
+        self.best = -float('inf')
         self.count = 0
         self.delta = delta
         self.model_name = model_name
