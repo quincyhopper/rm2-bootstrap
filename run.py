@@ -4,7 +4,6 @@ import time
 import nltk
 from torch.utils.data import DataLoader
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score
 from model import get_vocab, MultiHotDataset, MultiHotCollator, LogisticRegression
 from nltk.tokenize import word_tokenize
 
@@ -34,7 +33,7 @@ def val(val_loader, model, criterion, device):
     model.eval()
 
     total_loss = 0.0
-    total_acc = 0.0
+    correct = 0.0
 
     for batch, targets in val_loader:
         batch, targets = batch.to(device), targets.to(device)
@@ -43,10 +42,9 @@ def val(val_loader, model, criterion, device):
         total_loss += loss.item()
 
         preds = logits.argmax(dim=-1)
-        acc = accuracy_score(targets, preds)
-        total_acc += acc
+        correct += (preds == targets).sum().item()
 
-    return (total_loss / len(val_loader)), (total_acc / len(val_loader))
+    return (total_loss / len(val_loader)), (correct / len(val_loader))
 
 if __name__ == "__main__":
 
