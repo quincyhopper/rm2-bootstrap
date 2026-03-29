@@ -83,7 +83,7 @@ def val(val_loader, model, criterion, device):
 
 def train_model(model, train_loader, val_loader, model_name, device):
 
-    model = LogisticRegression(vocab_size).to(device)
+    model = model.to(device)
     optimiser = torch.optim.AdamW(model.parameters(), lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY)
     criterion = torch.nn.CrossEntropyLoss()
     early_stopping = EarlyStopping(patience=10, model_name=model_name)
@@ -173,7 +173,7 @@ if __name__ == "__main__":
 
     # --- Bootstrap ---
     print("Bootstrapping...")
-    logreg = logreg.load_state_dict(torch.load('logreg.pt'))
-    mlp = mlp.load_state_dict(torch.load('mlp.pt'))
+    logreg.load_state_dict(torch.load('logreg.pt', weights_only=True))
+    mlp.load_state_dict(torch.load('mlp.pt', weights_only=True))
     diff, lower, upper = bootstrap(test_tokenised, y_test, logreg, mlp, criterion=torch.nn.CrossEntropyLoss(), vocab=vocab, batch_size=BATCH_SIZE)
     print(f"Diff: {diff}")
