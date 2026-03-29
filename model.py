@@ -55,17 +55,18 @@ class MultiHotCollator():
         return x, y
     
 class EarlyStopping:
-    def __init__(self, patience: int, delta: int=1e-4):
+    def __init__(self, patience: int, model_name: str, delta: int=1e-4):
         self.patience = patience
         self.best = float('inf')
         self.count = 0
         self.delta = delta
+        self.model_name = model_name
 
-    def step(self, model, val_loss: float):
-        if val_loss < self.best - self.delta:
-            self.best = val_loss
+    def step(self, model, score: float):
+        if score < self.best - self.delta:
+            self.best = score
             self.counter = 0
-            torch.save(model.state_dict(), 'best_model.pt')
+            torch.save(model.state_dict(), self.model_name)
         else:
             self.counter += 1
 
@@ -79,4 +80,18 @@ class LogisticRegression(nn.Module):
 
     def forward(self, x: torch.Tensor):
         x = self.fc1(x)
+        return x
+    
+class MLP(nn.Module):
+    def __init__(self, vocab_size, hidden_dim):
+        super().__init__()
+
+        self.fc1 = nn.Linear(vocab_size, hidden_dim)
+        self.relu = nn.ReLU()
+        self.fc2 = nn.Linear(hidden_dim, 2)
+
+    def forward(self, x: torch.Tensor):
+        x = self.fc1(x)
+        x = self.relu(x)
+        x = self.fc2(x)
         return x
