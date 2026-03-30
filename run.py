@@ -13,7 +13,7 @@ BATCH_SIZE = 128
 LEARNING_RATE = 1e-4
 WEIGHT_DECAY = 1e-4
 MAX_EPOCHS = 1000
-N_BOOTSTRAP = 1000
+N_BOOTSTRAP = 100
 
 def train(train_loader, model, optimiser, criterion, device):
     model.train()
@@ -55,6 +55,7 @@ def val(val_loader, model, criterion, device):
     return final_loss, auc
 
 def train_model(model, train_loader, val_loader, model_name, device):
+    model.train()
 
     model = model.to(device)
     optimiser = torch.optim.AdamW(model.parameters(), lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY)
@@ -72,7 +73,7 @@ def train_model(model, train_loader, val_loader, model_name, device):
         print(f"Epoch [{epoch+1}/{MAX_EPOCHS}] | Train loss: {train_loss:.2f} | Val loss: {val_loss:.2f} | Val AUC: {val_auc:.2f} | Time: {total_time:.2f} seconds")
 
         if early_stopping.step(model, val_auc, epoch+1):
-            print("Early stopping triggered.\n")
+            print(f"Early stopping triggered. Model saved at epoch {early_stopping.best_epoch} with {early_stopping.best_score:.2f} AUC.\n")
             break
 
 def get_bootstrap_loader(dataset, batch_size: int, vocab_size: int):
@@ -85,7 +86,7 @@ def get_bootstrap_loader(dataset, batch_size: int, vocab_size: int):
         pin_memory=True
     )
 
-def bootstrap(X, y, model1, model2, criterion, vocab, batch_size, device):
+def bootstrap(X, y, model1, model2, criterion, vocab, batch_size, device) -> tuple[list, float, float]:
 
     test_dataset = MultiHotDataset(X, y, vocab)
     vocab_size = len(vocab)
@@ -95,12 +96,12 @@ def bootstrap(X, y, model1, model2, criterion, vocab, batch_size, device):
         loader = get_bootstrap_loader(test_dataset, batch_size=batch_size, vocab_size=vocab_size)
         _, auc1 = val(loader, model1, criterion, device)
         _, auc2 = val(loader, model2, criterion, device)
-        diffs.append(auc1 - auc2)
+        diffs.append(auc2 - auc1) # Measures if model 2 is better than model 1
 
-    mean_diff = sum(diffs) / len(diffs)
-    lower, upper = np.percentile(diffs, 2.5), np.percentile(diffs, 97.5)
+    sorted_diffs = sorted(diffs)
+    lower, upper = np.percentile(sorted_diffs, 2.5), np.percentile(sorted_diffs, 97.5)
 
-    return mean_diff, lower, upper
+    return diffs, lower, upper
 
 if __name__ == "__main__":
 
@@ -168,12 +169,16 @@ if __name__ == "__main__":
     
     # --- Model 2: MLP ---
     print("Training MLP...")
-    mlp = MLP(vocab_size, hidden_dim=256)
+    mlp = MLP(vocab_size)
     train_model(mlp, train_loader, val_loader, model_name='mlp.pt', device=device)
 
     # --- Bootstrap ---
     print("Bootstrapping...")
     logreg.load_state_dict(torch.load('logreg.pt', weights_only=True))
     mlp.load_state_dict(torch.load('mlp.pt', weights_only=True))
-    diff, lower, upper = bootstrap(test_tokenised, y_test, logreg, mlp, criterion=torch.nn.CrossEntropyLoss(), vocab=vocab, batch_size=BATCH_SIZE, device=device)
-    print(f"Diff: {diff}")
+    diffs, lower, upper = bootstrap(test_tokenised, y_test, logreg, mlp, criterion=torch.nn.CrossEntropyLoss(), vocab=vocab, batch_size=BATCH_SIZE, device=device)
+
+    # --- Results ---
+    mean_diff = np.mean(diffs)
+    p_value = np.mean(np.array(diffs) <= 0)
+    print(f"AUC difference (Model 2 - Model 1): {mean_diff:.3f} (95% CI: {lower:.3f} to {upper:.3f}), p={p_value:.3f}")
