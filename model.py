@@ -128,4 +128,4 @@ class TransformerDataset(Dataset):
         return len(self.targets)
     
     def __getitem__(self, index):
-        return {k: v[index] for k, v in self.encoded_texts.items()}, self.targets
+        return {k: v[index] for k, v in self.encoded_texts.items()}, self.targets[index]
