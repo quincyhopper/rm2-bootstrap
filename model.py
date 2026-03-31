@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import Dataset
 from collections import Counter
+from transformers import AutoModel
 
 def get_vocab(tokenised_texts: list[list[str]]) -> dict:
     
@@ -68,38 +69,63 @@ class EarlyStopping:
             self.best_score = auc
             self.count = 0
             self.best_epoch = epoch
-            torch.save(model.state_dict(), self.model_name)
+            model.save(self.model_name)
         else:
             self.count += 1
 
         return self.count >= self.patience
 
 class LogisticRegression(nn.Module):
-    def __init__(self, vocab_size):
+    def __init__(self, input_dim):
         super().__init__()
 
-        self.fc1 = nn.Linear(vocab_size, 2)
+        self.fc1 = nn.Linear(input_dim, 2)
 
     def forward(self, x: torch.Tensor):
         x = self.fc1(x)
         return x
     
-class MLP(nn.Module):
-    def __init__(self, vocab_size):
+    def save(self, path):
+        torch.save(self.state_dict(), path)
+    
+class Transformer(nn.Module):
+    def __init__(self):
         super().__init__()
 
-        self.fc1 = nn.Linear(vocab_size, 512)
-        self.relu = nn.ReLU()
-        self.dropout = nn.Dropout(0.3)
-        self.fc2 = nn.Linear(512, 256)
-        self.fc3 = nn.Linear(256, 2)
+        self.encoder = AutoModel.from_pretrained('roberta-large')
 
-    def forward(self, x: torch.Tensor):
-        x = self.fc1(x)
-        x = self.relu(x)
-        x = self.dropout(x)
-        x = self.fc2(x)
-        x = self.relu(x)
-        x = self.dropout(x)
-        x = self.fc3(x)
-        return x
+        for param in self.encoder.parameters():
+            param.requires_grad = False
+
+        self.fc1 = nn.Linear(self.encoder.config.hidden_size, 2)
+
+    def forward(self, input_ids, attention_mask):
+        with torch.no_grad():
+            outputs = self.encoder(input_ids, attention_mask)
+
+        embedding = outputs.last_hidden_state[:, 0, :]
+
+        return self.fc1(embedding)
+    
+    def save(self, path):
+        torch.save(self.fc1.state_dict(), path)
+    
+class TransformerDataset(Dataset):
+    def __init__(self, reviews, targets, tokeniser):
+        super().__init__()
+
+        self.encoded_texts = tokeniser(
+            reviews,
+            truncation=True,
+            padding=True,
+            max_length=512,
+            return_tensors='pt'
+        )
+
+        self.targets = torch.tensor(targets)
+
+    def __len__(self):
+        return len(self.targets)
+    
+    def __getitem__(self, index):
+        return {k: v[index] for k, v in self.encoded_texts.items()}, self.targets
