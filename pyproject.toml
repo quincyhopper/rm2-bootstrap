@@ -5,7 +5,6 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "datasets>=4.8.4",
     "nltk>=3.9.4",
     "numpy>=2.4.3",
     "pandas>=3.0.1",
