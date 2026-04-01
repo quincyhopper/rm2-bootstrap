@@ -23,6 +23,7 @@ if __name__ == "__main__":
     # Read data
     print("Loading data...")
     df = pd.read_csv('data/Compiled_Reviews.txt', sep='\t')
+    df = df.dropna(subset=['REVIEW', 'RATING'])
 
     # Extract list of reviews and labels
     texts = df.REVIEW.tolist()
@@ -61,7 +62,6 @@ if __name__ == "__main__":
         batch_size=256,
         collate_fn=MultiHotCollator(vocab_size),
         pin_memory=True,
-        num_workers=4
     )
 
     val_loader = DataLoader(
@@ -69,7 +69,6 @@ if __name__ == "__main__":
         batch_size=256,
         collate_fn=MultiHotCollator(vocab_size),
         pin_memory=True,
-        num_workers=4
     )
 
     print("Training Logistic Regression...")
@@ -88,14 +87,12 @@ if __name__ == "__main__":
         batch_size=256,
         shuffle=True,
         pin_memory=True,
-        num_workers=4
     )
 
     val_loader = DataLoader(
         TransformerDataset(transformer_val),
         batch_size=256,
         pin_memory=True,
-        num_workers=4
     )
 
     print("Training Transformer...")

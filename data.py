@@ -73,5 +73,6 @@ def tokenise(batch, tokeniser):
     return tokeniser(batch['text'], trunctation=True, padding='max_length', max_length=512)
 
 def make_transformer_split(X, y, tokeniser):
+    X = [str(x) for x in X]
     hf = HFDataset.from_dict({'text': X, 'label': y})
     return hf.map(tokenise, fn_kwargs={'tokeniser': tokeniser}, batched=True, num_proc=4, desc="Tokenising")
