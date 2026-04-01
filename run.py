@@ -84,7 +84,7 @@ if __name__ == "__main__":
     print("\nPreparing transformer data...")
     model2 = LogisticRegression(input_dim=1024)
     transformer = AutoModel.from_pretrained('roberta-large').to(device)
-    if os.path.exists('transformer_head.pt'):
+    if not os.path.exists('transformer_head.pt'):
         tokeniser = AutoTokenizer.from_pretrained('roberta-large')
         train_embeddings, train_labels = precompute_embeddings(X_train, y_train, tokeniser, transformer, device)
         val_embeddings, val_labels = precompute_embeddings(X_val, y_val, tokeniser, transformer, device)
