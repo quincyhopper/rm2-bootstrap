@@ -59,7 +59,6 @@ if __name__ == "__main__":
     if not os.path.exists('logreg.pt'):
         print("Training Logistic Regression...")
         val_tokenised = [word_tokenize(str(review)) for review in X_val]
-        test_tokenised = [word_tokenize(str(review)) for review in X_test]
 
         # Init loaders
         train_loader = DataLoader(
@@ -83,33 +82,37 @@ if __name__ == "__main__":
     # --- Model 2: Transformer ---
 
     print("\nPreparing transformer data...")
-    tokeniser = AutoTokenizer.from_pretrained('roberta-large')
-    transformer = AutoModel.from_pretrained('roberta-large').to(device)
-    train_embeddings, train_labels = precompute_embeddings(X_train, y_train, tokeniser, transformer, device)
-    val_embeddings, val_labels = precompute_embeddings(X_val, y_val, tokeniser, transformer, device)
-    
-    train_loader = DataLoader(
-        TensorDataset(train_embeddings, train_labels),
-        batch_size=256,
-        shuffle=True,
-        pin_memory=True,
-    )
-
-    val_loader = DataLoader(
-        TensorDataset(val_embeddings, val_labels),
-        batch_size=256,
-        pin_memory=True,
-    )
-
-    print("Training Transformer...")
     model2 = LogisticRegression(input_dim=1024)
-    train_model(model2, train_loader, val_loader, model_name='transformer_head.pt', device=device)
+    if os.path.exists('transformer_head.pt'):
+        tokeniser = AutoTokenizer.from_pretrained('roberta-large')
+        transformer = AutoModel.from_pretrained('roberta-large').to(device)
+        train_embeddings, train_labels = precompute_embeddings(X_train, y_train, tokeniser, transformer, device)
+        val_embeddings, val_labels = precompute_embeddings(X_val, y_val, tokeniser, transformer, device)
+        
+        train_loader = DataLoader(
+            TensorDataset(train_embeddings, train_labels),
+            batch_size=256,
+            shuffle=True,
+            pin_memory=True,
+        )
+
+        val_loader = DataLoader(
+            TensorDataset(val_embeddings, val_labels),
+            batch_size=256,
+            pin_memory=True,
+        )
+
+        print("Training Transformer...")
+        train_model(model2, train_loader, val_loader, model_name='transformer_head.pt', device=device)
+    else:
+        print("Found a trained transformer head. Skipping training.")
 
     # --- Bootstrap ---
     print("Preparing to bootstrap...")
     model1.load_state_dict(torch.load('logreg.pt', weights_only=True))
     model2.load_state_dict(torch.load('transformer_head.pt', weights_only=True))
 
+    test_tokenised = [word_tokenize(str(review)) for review in X_test]
     logreg_test = MultiHotDataset(test_tokenised, y_test, vocab)
     collator = MultiHotCollator(vocab_size)
     test_embeddings, test_labels = precompute_embeddings(X_test, y_test, tokeniser, transformer, device)
