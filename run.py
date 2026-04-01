@@ -2,13 +2,13 @@ import pandas as pd
 import torch
 import nltk
 import numpy as np
-from transformers import AutoTokenizer
-from torch.utils.data import DataLoader
+from transformers import AutoTokenizer, AutoModel
+from torch.utils.data import DataLoader, TensorDataset
 from sklearn.model_selection import train_test_split
 from nltk.tokenize import word_tokenize
 
-from data import get_vocab, make_transformer_split, MultiHotDataset, MultiHotCollator, TransformerDataset
-from model import LogisticRegression, Transformer
+from data import get_vocab, precompute_embeddings, MultiHotDataset, MultiHotCollator
+from model import LogisticRegression
 from train import train_model
 from bootstrapping import bootstrap
 
@@ -72,51 +72,50 @@ if __name__ == "__main__":
     )
 
     print("Training Logistic Regression...")
-    logreg = LogisticRegression(vocab_size)
-    train_model(logreg, train_loader, val_loader, model_name='logreg.pt', device=device)
+    model1 = LogisticRegression(vocab_size)
+    train_model(model1, train_loader, val_loader, model_name='logreg.pt', device=device)
     
     # --- Model 2: Transformer ---
 
     print("\nPreparing transformer data...")
     tokeniser = AutoTokenizer.from_pretrained('roberta-large')
-    transformer_train = make_transformer_split(X_train, y_train, tokeniser)
-    transformer_val = make_transformer_split(X_val, y_val, tokeniser)
+    transformer = AutoModel.from_pretrained('roberta-large')
+    train_embeddings, train_labels = precompute_embeddings(X_train, y_train, tokeniser, transformer, device)
+    val_embeddings, val_labels = precompute_embeddings(X_val, y_val, tokeniser, transformer, device)
     
     train_loader = DataLoader(
-        TransformerDataset(transformer_train),
+        TensorDataset(train_embeddings, train_labels),
         batch_size=256,
         shuffle=True,
         pin_memory=True,
     )
 
     val_loader = DataLoader(
-        TransformerDataset(transformer_val),
+        TensorDataset(val_embeddings, val_labels),
         batch_size=256,
         pin_memory=True,
     )
 
     print("Training Transformer...")
-    transformer = Transformer()
-    train_model(transformer, train_loader, val_loader, model_name='transformer_head.pt', device=device)
+    model2 = LogisticRegression(input_dim=1024)
+    train_model(model2, train_loader, val_loader, model_name='transformer_head.pt', device=device)
 
     # --- Bootstrap ---
     print("Preparing to bootstrap...")
-    logreg.load_state_dict(torch.load('logreg.pt', weights_only=True))
-    transformer.fc1.load_state_dict(torch.load('transformer_head.pt', weights_only=True))
+    model1.load_state_dict(torch.load('logreg.pt', weights_only=True))
+    model2.load_state_dict(torch.load('transformer_head.pt', weights_only=True))
 
     logreg_test = MultiHotDataset(test_tokenised, y_test, vocab)
     collator = MultiHotCollator(vocab_size)
-    transformer_test = TransformerDataset(
-        make_transformer_split(X_test, y_test, tokeniser)
-    )
+    test_embeddings, test_labels = precompute_embeddings(X_test, y_test, tokeniser, transformer, device)
+    transformer_test = TensorDataset(test_embeddings, test_labels)
 
     diffs, lower, upper = bootstrap(
         logreg_data=logreg_test,
         transformer_data=transformer_test,
-        model1=logreg, 
-        model2=transformer, 
-        tokeniser=tokeniser, 
-        vocab=vocab, 
+        model1=model1, 
+        model2=model2, 
+        collator=collator,
         device=device)
 
     # --- Results ---

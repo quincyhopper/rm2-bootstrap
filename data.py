@@ -1,5 +1,4 @@
 import torch
-from datasets import Dataset as HFDataset
 from torch.utils.data import Dataset
 from collections import Counter
 
@@ -53,33 +52,27 @@ class MultiHotCollator():
         y = torch.stack([t[1] for t in batch]).long()
 
         return x, y
-    
-class TransformerDataset(Dataset):
-    def __init__(self, hf_dataset):
-        super().__init__()
 
-        self.hf_dataset = hf_dataset
+@torch.no_grad()
+def precompute_embeddings(X: list, y: list, tokeniser, model, device):
+    model.eval()
 
-    def __len__(self):
-        return len(self.hf_dataset)
-    
-    def __getitem__(self, index):
-        item = self.hf_dataset[index]
-        x = {'input_ids': item['input_ids'], 'attention_mask': item['attention_mask']}
-        y = item['label']
-        return x, y
-    
-def tokenise(batch, tokeniser):
-    return tokeniser(batch['text'], truncation=True, padding='max_length', max_length=512)
-
-def make_transformer_split(X, y, tokeniser):
     X = [str(x) for x in X]
-    hf = HFDataset.from_dict({'text': X, 'label': y})
-    hf = hf.map(
-        tokenise, 
-        fn_kwargs={'tokeniser': tokeniser}, 
-        batched=True, 
-        num_proc=4, 
-        desc="Tokenising")
-    hf.set_format(type='torch', columns=['input_ids', 'attention_mask', 'label'])
-    return hf
+    
+    tokens = tokeniser(
+        X,
+        truncation=True, 
+        padding='max_length',
+        max_length=512,
+        return_tensors='pt'
+        )
+    
+    all_embeddings = []
+    for i in range(0, len(X), 256):
+        input_ids = tokens['input_ids'][i : i + 256].to(device)
+        attention_mask = tokens['attention_mask'][i : i + 256].to(device)
+        outputs = model(input_ids, attention_mask)
+        embeddings = outputs.last_hidden_state[:, 0, :].cpu()
+        all_embeddings.append(embeddings)
+    
+    return torch.cat(all_embeddings), torch.cat(y)

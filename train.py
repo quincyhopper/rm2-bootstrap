@@ -1,15 +1,6 @@
 import torch
 from sklearn.metrics import roc_auc_score
 
-def forward_pass(model, input, device):
-    if isinstance(input, dict):
-        input_ids = input['input_ids'].to(device)
-        attention_mask = input['attention_mask'].to(device)
-        return model(input_ids, attention_mask)
-    else:
-        input = input.to(device)
-        return model(input)
-
 def train(train_loader, model, optimiser, criterion, device):
     model.train()
 
@@ -18,7 +9,7 @@ def train(train_loader, model, optimiser, criterion, device):
     for batch, targets in train_loader:
         optimiser.zero_grad()
         targets = targets.to(device)
-        logits = forward_pass(model, batch, device)
+        logits = model(batch.to(device))
         loss = criterion(logits, targets)
         loss.backward()
         epoch_loss += loss.item()
@@ -36,7 +27,7 @@ def val(val_loader, model, criterion, device):
 
     for batch, targets in val_loader:
         targets = targets.to(device)
-        logits = forward_pass(model, batch, device)
+        logits = model(batch.to(device))
         loss = criterion(logits, targets)
         total_loss += loss.item()
 
