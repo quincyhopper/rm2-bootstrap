@@ -81,5 +81,5 @@ def make_transformer_split(X, y, tokeniser):
         batched=True, 
         num_proc=4, 
         desc="Tokenising")
-    hf = hf.set_format(type='torch', columns=['input_ids', 'attention_mask', 'label'])
+    hf.set_format(type='torch', columns=['input_ids', 'attention_mask', 'label'])
     return hf
