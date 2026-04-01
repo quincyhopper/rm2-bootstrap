@@ -2,6 +2,7 @@ import pandas as pd
 import torch
 import nltk
 import numpy as np
+import os
 from transformers import AutoTokenizer, AutoModel
 from torch.utils.data import DataLoader, TensorDataset
 from sklearn.model_selection import train_test_split
@@ -51,29 +52,33 @@ if __name__ == "__main__":
     # Tokenise
     print("Preparing logreg data...")
     train_tokenised = [word_tokenize(str(review)) for review in X_train]
-    val_tokenised = [word_tokenize(str(review)) for review in X_val]
-    test_tokenised = [word_tokenize(str(review)) for review in X_test]
     vocab = get_vocab(train_tokenised)
     vocab_size = len(vocab)
-
-    # Init loaders
-    train_loader = DataLoader(
-        MultiHotDataset(train_tokenised, y_train, vocab),
-        batch_size=256,
-        collate_fn=MultiHotCollator(vocab_size),
-        pin_memory=True,
-    )
-
-    val_loader = DataLoader(
-        MultiHotDataset(val_tokenised, y_val, vocab),
-        batch_size=256,
-        collate_fn=MultiHotCollator(vocab_size),
-        pin_memory=True,
-    )
-
-    print("Training Logistic Regression...")
     model1 = LogisticRegression(vocab_size)
-    train_model(model1, train_loader, val_loader, model_name='logreg.pt', device=device)
+
+    if not os.path.exists('logreg.pt'):
+        print("Training Logistic Regression...")
+        val_tokenised = [word_tokenize(str(review)) for review in X_val]
+        test_tokenised = [word_tokenize(str(review)) for review in X_test]
+
+        # Init loaders
+        train_loader = DataLoader(
+            MultiHotDataset(train_tokenised, y_train, vocab),
+            batch_size=256,
+            collate_fn=MultiHotCollator(vocab_size),
+            pin_memory=True,
+        )
+
+        val_loader = DataLoader(
+            MultiHotDataset(val_tokenised, y_val, vocab),
+            batch_size=256,
+            collate_fn=MultiHotCollator(vocab_size),
+            pin_memory=True,
+        )
+
+        train_model(model1, train_loader, val_loader, model_name='logreg.pt', device=device)
+    else:
+        print("Found a trained logistic regression model. Skipping training")
     
     # --- Model 2: Transformer ---
 
