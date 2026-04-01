@@ -121,9 +121,9 @@ if __name__ == "__main__":
     except LookupError:
         nltk.download('punkt_tab')
 
-    # Read datat
+    # Read data
     print("Loading data...")
-    df = pd.read_csv('data/reviews.csv')
+    df = pd.read_csv('data/Compiled_Reviews.txt', sep='\t')
 
     # Extract list of reviews and labels
     texts = df.text.tolist()
