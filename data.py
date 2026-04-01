@@ -70,7 +70,7 @@ class TransformerDataset(Dataset):
         return x, y
     
 def tokenise(batch, tokeniser):
-    return tokeniser(batch['text'], trunctation=True, padding='max_length', max_length=512)
+    return tokeniser(batch['text'], truncation=True, padding='max_length', max_length=512)
 
 def make_transformer_split(X, y, tokeniser):
     X = [str(x) for x in X]
