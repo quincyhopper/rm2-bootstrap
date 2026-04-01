@@ -1,6 +1,5 @@
 import torch
 import torch.nn as nn
-from transformers import AutoModel
 
 class LogisticRegression(nn.Module):
     def __init__(self, input_dim):
