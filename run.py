@@ -3,115 +3,14 @@ import torch
 import nltk
 import numpy as np
 from transformers import AutoTokenizer
-from torch.utils.data import DataLoader, RandomSampler
+from torch.utils.data import DataLoader
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import roc_auc_score
 from nltk.tokenize import word_tokenize
-from model import get_vocab, MultiHotDataset, MultiHotCollator, LogisticRegression, EarlyStopping, Transformer, TransformerDataset
 
-BATCH_SIZE = 128
-LEARNING_RATE = 1e-4
-WEIGHT_DECAY = 1e-4
-MAX_EPOCHS = 1000
-N_BOOTSTRAP = 100
-
-def forward_pass(model, input, device):
-    if isinstance(input, dict):
-        input_ids = input['input_ids'].to(device)
-        attention_mask = input['attention_mask'].to(device)
-        return model(input_ids, attention_mask)
-    else:
-        input = input.to(device)
-        return model(input)
-
-def train(train_loader, model, optimiser, criterion, device):
-    model.train()
-
-    epoch_loss = 0.0
-
-    for batch, targets in train_loader:
-        optimiser.zero_grad()
-        targets = targets.to(device)
-        logits = forward_pass(model, batch, device)
-        loss = criterion(logits, targets)
-        loss.backward()
-        epoch_loss += loss.item()
-        optimiser.step()
-
-    return epoch_loss / len(train_loader)
-
-@torch.no_grad()
-def val(val_loader, model, criterion, device):
-    model.eval()
-
-    total_loss = 0.0
-    all_probs = []
-    all_targets = []
-
-    for batch, targets in val_loader:
-        targets = targets.to(device)
-        logits = forward_pass(model, batch, device)
-        loss = criterion(logits, targets)
-        total_loss += loss.item()
-
-        probs = torch.softmax(logits, dim=-1)[:, 1] # Prob of positive class
-        all_probs.extend(probs.cpu().numpy())
-        all_targets.extend(targets.cpu().numpy())
-
-    final_loss = total_loss / len(val_loader)
-    auc = roc_auc_score(all_targets, all_probs)
-
-    return final_loss, auc
-
-def train_model(model, train_loader, val_loader, model_name, device):
-
-    model = model.to(device)
-    optimiser = torch.optim.AdamW(model.parameters(), lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY)
-    criterion = torch.nn.CrossEntropyLoss()
-    early_stopping = EarlyStopping(patience=10, model_name=model_name)
-
-    for epoch in range(MAX_EPOCHS):
-        train_loss = train(train_loader, model, optimiser, criterion, device)
-        val_loss, val_auc = val(val_loader, model, criterion, device)
-
-        print(f"Epoch [{epoch+1}/{MAX_EPOCHS}] | Train loss: {train_loss:.2f} | Val loss: {val_loss:.2f} | Val AUC: {val_auc:.2f}")
-
-        if early_stopping.step(model, val_auc, epoch+1):
-            print(f"Early stopping triggered. Model saved at epoch {early_stopping.best_epoch} with {early_stopping.best_score:.2f} AUC.\n")
-            break
-
-def get_bootstrap_loader(dataset, batch_size: int, collator_fn=None):
-    sampler = RandomSampler(dataset, replacement=True, num_samples=len(dataset))
-    return DataLoader(
-        dataset,
-        batch_size=batch_size,
-        sampler=sampler,
-        collate_fn=collator_fn,
-        pin_memory=True
-    )
-
-def bootstrap(X, y, logreg, transformer, tokenizer, criterion, vocab, batch_size, device) -> tuple[list, float, float]:
-
-    # Prepare logreg
-    test_tokenized = [word_tokenize(review) for review in X]
-    logreg_data = MultiHotDataset(test_tokenized, y, vocab)
-    collator = MultiHotCollator(vocab_size=len(vocab))
-
-    # Prepare transformer
-    transformer_data = TransformerDataset(X, y, tokenizer)
-
-    diffs = []
-    for _ in range(N_BOOTSTRAP):
-        loader1 = get_bootstrap_loader(logreg_data, batch_size=batch_size, collator_fn=collator)
-        loader2 = get_bootstrap_loader(transformer_data, batch_size=batch_size)
-        _, auc1 = val(loader1, logreg, criterion, device)
-        _, auc2 = val(loader2, transformer, criterion, device)
-        diffs.append(auc2 - auc1) # Measures if model 2 is better than model 1
-
-    sorted_diffs = sorted(diffs)
-    lower, upper = np.percentile(sorted_diffs, 2.5), np.percentile(sorted_diffs, 97.5)
-
-    return diffs, lower, upper
+from data import get_vocab, make_transformer_split, MultiHotDataset, MultiHotCollator, TransformerDataset
+from model import LogisticRegression, Transformer
+from train import train_model
+from bootstrapping import bootstrap
 
 if __name__ == "__main__":
 
@@ -126,8 +25,8 @@ if __name__ == "__main__":
     df = pd.read_csv('data/Compiled_Reviews.txt', sep='\t')
 
     # Extract list of reviews and labels
-    texts = df.text.tolist()
-    labels = df.sentiment.map({'positive': 1, 'negative': 0}).tolist()
+    texts = df.REVIEW.tolist()
+    labels = df.RATING.map({'positive': 1, 'negative': 0}).tolist()
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     # Train/val split
@@ -141,35 +40,36 @@ if __name__ == "__main__":
 
     X_val, X_test, y_val, y_test = train_test_split(
         X_other, y_other,
-        random_state=42,
         train_size=0.5,
+        random_state=42,
         stratify=y_other
     )
 
     # --- Model 1: Logistic Regression ---
 
     # Tokenise
-    print("Tokenising...")
-    train_tokenised = [word_tokenize(review) for review in X_train]
-    val_tokenised = [word_tokenize(review) for review in X_val]
-
-    # Get vocab
+    print("Preparing logreg data...")
+    train_tokenised = [word_tokenize(str(review)) for review in X_train]
+    val_tokenised = [word_tokenize(str(review)) for review in X_val]
+    test_tokenised = [word_tokenize(str(review)) for review in X_test]
     vocab = get_vocab(train_tokenised)
     vocab_size = len(vocab)
 
     # Init loaders
     train_loader = DataLoader(
         MultiHotDataset(train_tokenised, y_train, vocab),
-        batch_size=BATCH_SIZE,
+        batch_size=256,
         collate_fn=MultiHotCollator(vocab_size),
-        pin_memory=True
+        pin_memory=True,
+        num_workers=4
     )
 
     val_loader = DataLoader(
         MultiHotDataset(val_tokenised, y_val, vocab),
-        batch_size=BATCH_SIZE,
+        batch_size=256,
         collate_fn=MultiHotCollator(vocab_size),
-        pin_memory=True
+        pin_memory=True,
+        num_workers=4
     )
 
     print("Training Logistic Regression...")
@@ -178,35 +78,48 @@ if __name__ == "__main__":
     
     # --- Model 2: Transformer ---
 
+    print("\nPreparing transformer data...")
     tokeniser = AutoTokenizer.from_pretrained('roberta-large')
-
+    transformer_train = make_transformer_split(X_train, y_train, tokeniser)
+    transformer_val = make_transformer_split(X_val, y_val, tokeniser)
+    
     train_loader = DataLoader(
-        TransformerDataset(X_train, y_train, tokeniser),
-        batch_size=BATCH_SIZE,
+        TransformerDataset(transformer_train),
+        batch_size=256,
         shuffle=True,
-        pin_memory=True
+        pin_memory=True,
+        num_workers=4
     )
 
     val_loader = DataLoader(
-        TransformerDataset(X_val, y_val, tokeniser),
-        batch_size=BATCH_SIZE,
-        pin_memory=True
+        TransformerDataset(transformer_val),
+        batch_size=256,
+        pin_memory=True,
+        num_workers=4
     )
 
     print("Training Transformer...")
     transformer = Transformer()
-    train_model(transformer, train_loader, val_loader, model_name='transformer.pt', device=device)
+    train_model(transformer, train_loader, val_loader, model_name='transformer_head.pt', device=device)
 
     # --- Bootstrap ---
-    print("Bootstrapping...")
+    print("Preparing to bootstrap...")
     logreg.load_state_dict(torch.load('logreg.pt', weights_only=True))
-    transformer.fc1.load_state_dict(torch.load('transformer.pt', weights_only=True))
+    transformer.fc1.load_state_dict(torch.load('transformer_head.pt', weights_only=True))
+
+    logreg_test = MultiHotDataset(test_tokenised, y_test, vocab)
+    collator = MultiHotCollator(vocab_size)
+    transformer_test = TransformerDataset(
+        make_transformer_split(X_test, y_test, tokeniser)
+    )
 
     diffs, lower, upper = bootstrap(
-        X_test, y_test, logreg, 
-        transformer, tokeniser, 
-        criterion=torch.nn.CrossEntropyLoss(), 
-        vocab=vocab, batch_size=BATCH_SIZE, 
+        logreg_data=logreg_test,
+        transformer_data=transformer_test,
+        model1=logreg, 
+        model2=transformer, 
+        tokeniser=tokeniser, 
+        vocab=vocab, 
         device=device)
 
     # --- Results ---
