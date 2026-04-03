@@ -75,4 +75,4 @@ def precompute_embeddings(X: list, y: list, tokeniser, model, device):
         embeddings = outputs.last_hidden_state[:, 0, :].cpu()
         all_embeddings.append(embeddings)
     
-    return torch.cat(all_embeddings), torch.tensor(y)
+    return torch.cat(all_embeddings), torch.tensor(y, dtype=torch.float)

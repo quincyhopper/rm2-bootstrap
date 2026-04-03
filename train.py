@@ -9,7 +9,7 @@ def train(train_loader, model, optimiser, criterion, device):
     for batch, targets in train_loader:
         optimiser.zero_grad()
         targets = targets.to(device)
-        logits = model(batch.to(device))
+        logits = model(batch.to(device)).squeeze(1)
         loss = criterion(logits, targets)
         loss.backward()
         epoch_loss += loss.item()
@@ -27,11 +27,11 @@ def val(val_loader, model, criterion, device):
 
     for batch, targets in val_loader:
         targets = targets.to(device)
-        logits = model(batch.to(device))
+        logits = model(batch.to(device)).squeeze(1)
         loss = criterion(logits, targets)
         total_loss += loss.item()
 
-        probs = torch.softmax(logits, dim=-1)[:, 1] # Prob of positive class
+        probs = torch.sigmoid(logits)
         all_probs.extend(probs.cpu().numpy())
         all_targets.extend(targets.cpu().numpy())
 
@@ -64,7 +64,7 @@ def train_model(model, train_loader, val_loader, model_name, device):
 
     model = model.to(device)
     optimiser = torch.optim.AdamW(model.parameters(), lr=1e-4, weight_decay=1e-4)
-    criterion = torch.nn.CrossEntropyLoss()
+    criterion = torch.nn.BCELoss()
     early_stopping = EarlyStopping(patience=10, model_name=model_name)
 
     for epoch in range(1000):
