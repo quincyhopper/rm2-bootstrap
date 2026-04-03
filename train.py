@@ -71,8 +71,8 @@ def train_model(model, train_loader, val_loader, model_name, device):
         train_loss = train(train_loader, model, optimiser, criterion, device)
         val_loss, val_auc = val(val_loader, model, criterion, device)
 
-        print(f"Epoch [{epoch+1}/{1000}] | Train loss: {train_loss:.2f} | Val loss: {val_loss:.2f} | Val AUC: {val_auc:.2f}")
+        print(f"Epoch [{epoch+1}/{1000}] | Train loss: {train_loss:.4f} | Val loss: {val_loss:.4f} | Val AUC: {val_auc:.4f}")
 
         if early_stopping.step(model, val_auc, epoch+1):
-            print(f"Early stopping triggered. Model saved at epoch {early_stopping.best_epoch} with {early_stopping.best_score:.2f} AUC.\n")
+            print(f"Early stopping triggered. Model saved at epoch {early_stopping.best_epoch} with {early_stopping.best_score:.4f} AUC.\n")
             break

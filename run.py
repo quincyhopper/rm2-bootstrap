@@ -129,4 +129,4 @@ if __name__ == "__main__":
     # --- Results ---
     mean_diff = np.mean(diffs)
     p_value = np.mean(np.array(diffs) <= 0)
-    print(f"AUC difference (Model 2 - Model 1): {mean_diff:.3f} (95% CI: {lower:.3f} to {upper:.3f}), p={p_value:.3f}")
+    print(f"AUC difference (Model 2 - Model 1): {mean_diff:.4f} (95% CI: {lower:.4f} to {upper:.4f}), p={p_value:.4f}")
