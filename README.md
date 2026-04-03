@@ -41,18 +41,22 @@ uv run run.py
 ```
 
 ## Methods
-No preprocessing was applied to the texts. The data was split 80/10/10% using seed 42. Both models used the AdamW optimiser (`lr=1e-4, weight_decay=1e-4`) to minimise the cross-entropy loss function. 
+No preprocessing was applied to the texts. The data was split 80/10/10% using seed 42. Both models used the AdamW optimiser (`lr=1e-4, weight_decay=1e-4`) to minimise the BCELoss function. 
 
 ### Model 1: Logistic regression
-To prepare the data for the linear regression model, each text was tokenised using the nltk library. A vocab-index mapping was then extracted from the unique tokens in the training set. Using this mapping, all texts were multi-hot encoded such that each one was represented by a tensor $T$ of shape ($1$, $V$) where $V$ is the vocab size. Each element of this tensor $T_i$ was set to $1$ if the text contained the token $V_i$. Finally, for each batch, the tensors were stacked into a tensor $\mathbf{X}$ of shape ($B$, $V$), where $B=256$. 
+To prepare the data for the logistic regression model, each text was tokenised using the nltk library. A vocab-index mapping was then extracted from the unique tokens in the training set. Using this mapping, all texts were multi-hot encoded such that each one was represented by a tensor $T$ of shape ($V$, ) where $V$ is the vocab size. Each element of this tensor $T_i$ was set to $1$ if the text contained the token $V_i$. Finally, for each batch, the tensors were stacked into a tensor $\mathbf{X}$ of shape ($B$, $V$), where $B$ is the batch size. I used a batch size of $256$.
 
-The linear layer effectively consists of a matrix $\mathbf{W}$ of shape ($V$, $2$) and a bias vector $\mathbf{b}$ of shape ($2$). As such, the output of this layer is
+The linear layer effectively consists of a weight vector $\mathbf{w}$ of shape ($V$, $1$) and scalar bias $b$. The output is:
 
 $$
-\text{Logits} = \mathbf{X} \mathbf{W} + \mathbf{b}
+z = \mathbf{X} \mathbf{w} + b
 $$
 
-(Note: this is technically multi-class logistic regression but mathematically it is the same is normal linear regression.)
+The logit $z$ is then passed through the sigmoid function to obtain the probability of the positive class:
+
+$$
+\hat{y} = \frac{1}{1 + e^{-z}}
+$$
 
 ### Model 2: RoBERTa-large + logistic regression
 I used the RoBERTa-large checkpoint to precompute embeddings for each review. Then, a logistic regression was trained on these embeddings. This logistic regression model differs from the first only in terms of its input size - that is, each batch has the shape ($B$, $1024$).

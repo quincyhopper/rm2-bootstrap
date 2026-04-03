@@ -49,7 +49,7 @@ class MultiHotCollator():
         for i, t in enumerate(batch):
             x[i].scatter_(0, t[0], 1.0)
         
-        y = torch.stack([t[1] for t in batch]).long()
+        y = torch.stack([t[1] for t in batch]).float()
 
         return x, y
 
