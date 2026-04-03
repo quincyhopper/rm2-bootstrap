@@ -64,7 +64,7 @@ def train_model(model, train_loader, val_loader, model_name, device):
 
     model = model.to(device)
     optimiser = torch.optim.AdamW(model.parameters(), lr=1e-4, weight_decay=1e-4)
-    criterion = torch.nn.BCELoss()
+    criterion = torch.nn.BCEWithLogitsLoss()
     early_stopping = EarlyStopping(patience=10, model_name=model_name)
 
     for epoch in range(1000):

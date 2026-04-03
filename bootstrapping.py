@@ -15,7 +15,7 @@ def get_bootstrap_loader(dataset, collator_fn=None):
     )
 
 def bootstrap(logreg_data, transformer_data, model1, model2, collator, device) -> tuple[list, float, float]:
-    criterion = nn.CrossEntropyLoss()
+    criterion = nn.BCEWithLogitsLoss()
 
     diffs = []
     for i in range(200):
