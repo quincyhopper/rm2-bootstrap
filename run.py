@@ -6,12 +6,33 @@ import os
 from transformers import AutoTokenizer, AutoModel
 from torch.utils.data import DataLoader, TensorDataset
 from sklearn.model_selection import train_test_split
+from sklearn.metrics import roc_auc_score
 from nltk.tokenize import word_tokenize
 
 from data import get_vocab, precompute_embeddings, MultiHotDataset, MultiHotCollator
 from model import LogisticRegression
-from train import train_model
-from bootstrapping import bootstrap
+from train import train_model, predict
+
+def bootstrap(logreg_loader, transformer_loader, logreg_model, transformer, device):
+    probs1, labels1 = predict(logreg_loader, logreg_model)
+    probs2, labels2 = predict(transformer_loader, transformer, device)
+
+    n = len(labels1)
+    diffs = []
+
+    for _ in range(1000):
+        idx = np.random.randint(low=0, high=n, size=(n,)) # sample with replacement
+        auc1 = roc_auc_score(labels1[idx], probs1[idx])
+        auc2 = roc_auc_score(labels2[idx], probs2[idx])
+        diffs.append(auc2 - auc1)
+
+    diffs = np.array(diffs)
+    observed_mean = np.mean(diffs)
+    centered = diffs - observed_mean
+    p_value = np.mean(centered <= -observed_mean)
+    lower, upper = np.percentile(diffs, 2.5), np.percentile(diffs, 97.5)
+
+    return diffs, lower, upper, p_value
 
 if __name__ == "__main__":
 
@@ -109,24 +130,32 @@ if __name__ == "__main__":
 
     # --- Bootstrap ---
     print("Preparing to bootstrap...")
+
+    # Load models
     model1.load_state_dict(torch.load('logreg.pt', weights_only=True))
     model2.load_state_dict(torch.load('transformer_head.pt', weights_only=True))
 
+    # Logreg 
     test_tokenised = [word_tokenize(str(review)) for review in X_test]
-    logreg_test = MultiHotDataset(test_tokenised, y_test, vocab)
-    collator = MultiHotCollator(vocab_size)
+    model1_dataset = MultiHotDataset(test_tokenised, y_test, vocab)
+
+    # Transformer
     test_embeddings, test_labels = precompute_embeddings(X_test, y_test, tokeniser, transformer, device)
-    transformer_test = TensorDataset(test_embeddings, test_labels)
+    model2_dataset = TensorDataset(test_embeddings, test_labels)
 
-    diffs, lower, upper = bootstrap(
-        logreg_data=logreg_test,
-        transformer_data=transformer_test,
-        model1=model1, 
-        model2=model2, 
-        collator=collator,
-        device=device)
-
-    # --- Results ---
-    mean_diff = np.mean(diffs)
-    p_value = np.mean(np.array(diffs) <= 0)
-    print(f"AUC difference (Model 2 - Model 1): {mean_diff:.4f} (95% CI: {lower:.4f} to {upper:.4f}), p={p_value:.4f}")
+    # Get loaders
+    model1_loader = DataLoader(
+        dataset=MultiHotDataset(test_tokenised, y_test, vocab), 
+        batch_size=256, 
+        collate_fn=MultiHotCollator(vocab_size),
+        pin_memory=True
+        )
+    
+    model2_loader = DataLoader(
+        TensorDataset(val_embeddings, val_labels),
+        batch_size=256,
+        pin_memory=True,
+        )
+    
+    diffs, lower, upper, p_value = bootstrap(model1_loader, model2_loader, model1, model2, device)
+    print(f"CI: {lower:.3f} to {upper:.3f} | p-value {p_value}")

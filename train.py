@@ -1,4 +1,5 @@
 import torch
+import numpy as np
 from sklearn.metrics import roc_auc_score
 
 def train(train_loader, model, optimiser, criterion, device):
@@ -39,6 +40,20 @@ def val(val_loader, model, criterion, device):
     auc = roc_auc_score(all_targets, all_probs)
 
     return final_loss, auc
+
+@torch.no_grad()
+def predict(loader, model, device):
+    model.eval()
+
+    all_probs, all_labels = [], []
+    for X, y in loader:
+        X, y = X.to(device), y.to(device)
+        logits = model(X).squeeze(1)
+        probs = torch.sigmoid(logits)
+        all_probs.append(probs.cpu().numpy())
+        all_labels.append(y.cpu().numpy())
+
+    return np.concatenate(all_probs), np.concatenate(all_labels)
 
 class EarlyStopping:
     def __init__(self, patience: int, model_name: str, delta: int=1e-4):
