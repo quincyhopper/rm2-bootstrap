@@ -1,5 +1,6 @@
 import pandas as pd
 import torch
+import torch.nn as nn
 import nltk
 import numpy as np
 import os
@@ -10,8 +11,20 @@ from sklearn.metrics import roc_auc_score
 from nltk.tokenize import word_tokenize
 
 from data import get_vocab, precompute_embeddings, MultiHotDataset, MultiHotCollator
-from model import LogisticRegression
 from train import train_model, predict
+
+class LogisticRegression(nn.Module):
+    def __init__(self, input_dim):
+        super().__init__()
+
+        self.fc1 = nn.Linear(input_dim, 1)
+
+    def forward(self, x: torch.Tensor):
+        x = self.fc1(x)
+        return x
+    
+    def save(self, path):
+        torch.save(self.state_dict(), path)
 
 def bootstrap(logreg_loader, transformer_loader, logreg_model, transformer, device):
     probs1, labels1 = predict(logreg_loader, logreg_model, device)
