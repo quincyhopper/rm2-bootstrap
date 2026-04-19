@@ -15,11 +15,11 @@ def get_bootstrap_loader(dataset, collator_fn=None):
     )
 
 def bootstrap(logreg_data, transformer_data, model1, model2, collator, device) -> tuple[list, float, float]:
+    print("Beginning bootstrap")
     criterion = nn.BCEWithLogitsLoss()
 
     diffs = []
-    for i in range(200):
-        print(f"Boostrapping ({i})")
+    for i in range(1000):
         loader1 = get_bootstrap_loader(logreg_data, collator_fn=collator)
         loader2 = get_bootstrap_loader(transformer_data)
         _, auc1 = val(loader1, model1, criterion, device)
