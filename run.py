@@ -151,7 +151,7 @@ if __name__ == "__main__":
         )
     
     model2_loader = DataLoader(
-        TensorDataset(val_embeddings, val_labels),
+        TensorDataset(test_embeddings, test_labels),
         batch_size=256,
         pin_memory=True,
         )
