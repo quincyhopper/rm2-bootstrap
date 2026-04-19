@@ -14,7 +14,7 @@ from model import LogisticRegression
 from train import train_model, predict
 
 def bootstrap(logreg_loader, transformer_loader, logreg_model, transformer, device):
-    probs1, labels1 = predict(logreg_loader, logreg_model)
+    probs1, labels1 = predict(logreg_loader, logreg_model, device)
     probs2, labels2 = predict(transformer_loader, transformer, device)
 
     n = len(labels1)
