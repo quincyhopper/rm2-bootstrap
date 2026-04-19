@@ -21,15 +21,14 @@ def bootstrap(logreg_loader, transformer_loader, logreg_model, transformer, devi
     diffs = []
 
     for _ in range(1000):
-        idx = np.random.randint(low=0, high=n, size=(n,)) # sample with replacement
+        idx = np.random.randint(low=0, high=n, size=n) # sample with replacement
         auc1 = roc_auc_score(labels1[idx], probs1[idx])
         auc2 = roc_auc_score(labels2[idx], probs2[idx])
         diffs.append(auc2 - auc1)
 
     diffs = np.array(diffs)
-    observed_mean = np.mean(diffs)
-    centered = diffs - observed_mean
-    p_value = np.mean(centered <= -observed_mean)
+    centered = diffs - np.mean(diffs)
+    p_value = np.mean(centered >= diffs)
     lower, upper = np.percentile(diffs, 2.5), np.percentile(diffs, 97.5)
 
     return diffs, lower, upper, p_value
