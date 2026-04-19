@@ -1,21 +1,22 @@
-# Comparing two classification models with bootstrapping
-In this project, I train and evaluate the performance of two models for sentiment classification. The data consists of 36,515 Amazon reviews. Reviews are labelled 'positive' or 'negative'. Model 1 is a logistic regression and Model 2 uses the RoBERTa-large checkpoint with a small classification head (one fully connected linear layer, no activations). I use boostrapping to compare the performance of these models on the test set. Results showed that...
+# Comparing two sentiment-classification models with bootstrapping
+In this project, I train and evaluate the performance of two models for sentiment classification. The data consists of 36,515 Amazon reviews labelled for sentiment as 'positive' or 'negative'. Model 1 was a logistic regression trained on multi-hot encoded representations of the reviews. To improve on this model, I used the RoBERTa-Large checkpoint to precompute contextualised embeddings for each review. This change was motivated by the fact that encoder-only transformer models perform well on a wide range of text-classification tasks, including sentiment classification. Model 2 was a logistic regression trained on these embeddings.
+
+I use bootstrap sampling to compare the performance of these models on a held-out test set. Results showed that Model 2 significantly outperformed Model 1 in terms of area-under-curve (AUC) score.
 
 ## Project structure
 ```
 .
 ├── data/                    
 │   ├── Compiled_Reviews.txt # Not included by default
-├── boostrapping.py          # Boostrapping logic
-├── data.py                  # Logic for making the datasets
+├── data.py                  # Logic for making the datasets (multi-hot encoding, embeddings)
 ├── jobscript.slurm          # Jobscript for running on cluster
-├── model.py                 # Logreg and transformer model architecture
+├── results.out              # Output of jobscript
+├── run.py                   # Main logic and bootstrap
 ├── train.py                 # Training and evaluation logic
-├── run.py                   # Main logic 
 ```
 
 ## Setup and installation
-This project uses uv for dependency management. If you don't have uv installed, install it via:
+This project uses uv for dependency management and reproducibility. If you don't have uv installed, install it via:
 ```
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
@@ -30,8 +31,10 @@ cd rm2-bootstrap
 uv sync
 ```
 
+Note that NLTK's punkt_tab will be installed by `run.py` if it is not already installed. This is used for tokenising the texts for Model 1.
+
 ## Run
-To train and evaluate the two models on the cluster, run:
+To reproduce the results, run the following command if using the CSF3 cluster:
 ```
 sbatch jobscript.slurm
 ```
@@ -41,24 +44,39 @@ uv run run.py
 ```
 
 ## Methods
-No preprocessing was applied to the texts. The data was split 80/10/10% using seed 42. Both models used the AdamW optimiser (`lr=1e-4, weight_decay=1e-4`) to minimise the BCELoss function. 
+No preprocessing was applied to the texts. The data was randomly split into train, validation, and test sets (80/10/10%). All random operations use seed 42. Both models used the AdamW optimiser (`lr=1e-4, weight_decay=1e-4`) to minimise the BCELossWithLogits function. The maximum number of epochs was set to 1,000 and, to prevent overfitting, training was terminated early if validation AUC did not improve by 0.001 within 10 epochs.
 
 ### Model 1: Logistic regression
-To prepare the data for the logistic regression model, each text was tokenised using the nltk library. A vocab-index mapping was then extracted from the unique tokens in the training set. Using this mapping, all texts were multi-hot encoded such that each one was represented by a tensor $T$ of shape ($V$, ) where $V$ is the vocab size. Each element of this tensor $T_i$ was set to $1$ if the text contained the token $V_i$. Finally, for each batch, the tensors were stacked into a tensor $\mathbf{X}$ of shape ($B$, $V$), where $B$ is the batch size. I used a batch size of $256$.
+To prepare the data for the logistic regression model, each text was tokenised using the NLTK library. A vocab-index mapping was then extracted from the unique tokens in the training set. Using this mapping, all texts were multi-hot encoded such that each one was represented by a tensor $T$ of shape ($V$, ) where $V$ is the vocab size. Each element of this tensor $T_i$ was set to $1$ if the text contained the token $V_i$. Finally, for each batch, the tensors were stacked into a tensor $\mathbf{X}$ of shape ($B$, $V$), where $B$ is the batch size. This process is outlined in `data.py`. 
 
-The linear layer effectively consists of a weight vector $\mathbf{w}$ of shape ($V$, $1$) and scalar bias $b$. The output is:
-
-$$
-z = \mathbf{X} \mathbf{w} + b
-$$
-
-The logit $z$ is then passed through the sigmoid function to obtain the probability of the positive class:
+The logistic regression effectively consists of a weight vector $\mathbf{w}$ of shape ($V$, $1$) and scalar bias $b$. The output is a vector of logits:
 
 $$
-\hat{y} = \frac{1}{1 + e^{-z}}
+\mathbf{z} = \mathbf{X} \mathbf{w} + b
 $$
 
-### Model 2: RoBERTa-large + logistic regression
-I used the RoBERTa-large checkpoint to precompute embeddings for each review. Then, a logistic regression was trained on these embeddings. This logistic regression model differs from the first only in terms of its input size - that is, each batch has the shape ($B$, $1024$).
+Each logit $\mathbf{z}_i$ is then passed through the sigmoid function to obtain the probability of the positive class:
+
+$$
+\mathbf{\hat{y}}_i = \sigma(\mathbf{z}_i) = \frac{1}{1 + e^{-\mathbf{z}_i}}
+$$
+
+### Model 2: RoBERTa-Large + logistic regression
+The RoBERTa-Large checkpoint is a pretrained encoder-only transformer that computes contextualised embeddings for tokens in a given input sequence. Embeddings were generated for all reviews and then the embedding of the CLS token was extracted to obtain a vector representation for each review. In BERT models, the CLS token is a token at the start of a sequence that is often used as aggregate representation of all the embeddings in the sequence. 
+
+A logistic regression was then trained on these CLS token embeddings. Since the embeddings were precomputed, the transformer's parameters were effectively frozen and were not optimised during training. As such, this model differs from the first only in terms of its input size - that is, each batch has the shape ($B$, $1024$), since the length of the embeddings generated by RoBERTa-Large is $1024$.
+
+### Bootstrapping
+A paired bootstrap resampling procedure (1,000 iterations) was used to evaluate if Model 2 achieved a significantly higher AUC than Model 2. First, predictions were generated on the test set for both models. For each iteration, a bootstrap sample equal to the number of test examples was drawn with replacement from the test set predictions. Both models were evaluated on the same resampled indices. 
+
+The difference in performance was calculated for each bootstrap iteration $(\Delta_\text{AUC} =\text{AUC}_2 - \text{AUC}_1)$. A 95% confidence interval was derived from the 2.5th and 97.5th percentiles of this distribution. To test the null hypothesis that there was no difference between the performance of the two models, the distribution was centered by subtracting the mean bootstrap difference from each sample. The $p$-value was calculated as the proportion of centered differences that were greater than or equal to the original observed differences
 
 ## Results
+Training for model 1 was terminated after 158 epochs, with a training loss of 0.24 and a validation loss of 0.35. Validation AUC was 0.93. Training for Model 2 was terminated after 376 epochs. Notably, Model 2 generalised much better than Model 1, with a smaller difference between training loss (0.23) and validation loss (0.24). Validation AUC for Model 2 was 0.97. 
+
+The bootstrap analysis demonstrated that Model 2 consistently outperformed Model 1, with a mean AUC improvement of 0.03 $(p<0.001)$ and 95% confidence interval of 0.024 to 0.037. This suggests that contextualised embeddings capture sentiment-relevant features that are not captured in a bag-of-words approach. However, while the improvement was statistically significant, it is only marginal. As such, in real-world applications, these small gains in performance may not warrant the additional complexity of a transformer-based model, especially in resource-constrained environments.
+
+## References
+Liu, Z. et al. (2021) ‘A robustly optimized Bert pre-training approach with post-training’, Lecture Notes in Computer Science, pp. 471–484. doi:10.1007/978-3-030-84186-7_31. 
+
+Efron, B., & Tibshirani, R.J. (1994). An Introduction to the Bootstrap (1st ed.). Chapman and Hall/CRC. doi:10.1201/9780429246593
