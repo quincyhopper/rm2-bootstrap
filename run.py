@@ -159,3 +159,5 @@ if __name__ == "__main__":
     
     diffs, lower, upper, p_value = bootstrap(model1_loader, model2_loader, model1, model2, device)
     print(f"CI: {lower:.3f} to {upper:.3f} | p-value {p_value}")
+
+    pd.DataFrame(diffs, columns=['diffs']).to_csv('diffs.csv', index=False)
