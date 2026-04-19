@@ -32,6 +32,7 @@ def bootstrap(logreg_loader, transformer_loader, logreg_model, transformer, devi
 
     n = len(labels1)
     diffs = []
+    np.random.seed(42)
 
     for _ in range(1000):
         idx = np.random.randint(low=0, high=n, size=n) # sample with replacement
